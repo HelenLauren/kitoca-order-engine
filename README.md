@@ -1,16 +1,16 @@
 # @kitoca/order-engine
 **Biblioteca Reutilizável de Pipeline Transacional, Precificação e Eventos**
 
-> **Escopo:** Biblioteca de código puro em TypeScript (Node.js ≥ 18) para construção de pipelines de processamento e checkout. Desacopla o fluxo transacional de pets não convencionais (validação de estoque, descontos por espécie e eventos pós-venda) sem vínculos com APIs ou servidores HTTP.
+> **Escopo:** Biblioteca de código puro em TypeScript (Node.js ≥ 18) para construção de pipelines de processamento e checkout. Desacopla o fluxo transacional de compras de um E-commerce sem vínculos com APIs ou servidores HTTP. Nesse repositório, o projeto Kitoca serve apenas como exemplo de aplicação da biblioteca.
 
 ---
 
-## 1. Identificação do Projeto Acadêmico
+## 1. Identificação do Projeto
 
 - **Projeto:** Kitoca - Plataforma Integrada de E-commerce & Conteúdo de Pets Exóticos
 - **Componente:** `@kitoca/order-engine` (Biblioteca de Checkout e Esteira de Pedidos)
-- **Integrantes do Grupo:** [Nome do Integrante 1], [Nome do Integrante 2], [Nome do Integrante 3], [Nome do Integrante 4]
-- **Link da Apresentação em Vídeo (YouTube):** https://youtube.com/watch?v=[SEU_VIDEO_AQUI]
+- **Integrantes do Grupo:** Bruno Viccenzo Mazetto, Helen Lauren Bonato, Letícia Bastías Fabri
+- **Link da Apresentação em Vídeo (YouTube):** Em andamento...
 
 ---
 

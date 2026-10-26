@@ -95,7 +95,51 @@ const pedido: OrderContext = {
 const pedidoProcessado = await pipeline.process(pedido);
 ```
 
+### Validação de Estoque Integrada ao Banco de Dados (Sem N+1 Queries)
+
+Em cenários reais de e-commerce, a validação de estoque precisa consultar o banco de dados do projeto de forma eficiente (busca em lote via `IN`), considerar estoque já reservado e permitir reserva atômica para evitar compras simultâneas (furo de estoque).
+
+A biblioteca fornece o [DatabaseInventoryGateway](file:///c:/Users/HelenLauren/develop/kitoca-order-engine/src/steps/stock-validation.step.ts#L61) para integração direta com qualquer ORM (Prisma, TypeORM, Drizzle, etc.):
+
+```typescript
+import {
+  OrderPipelineBuilder,
+  StockValidationStep,
+  DatabaseInventoryGateway,
+} from "@kitoca/order-engine";
+
+// 1. Conexão direta com o banco de dados do seu projeto (ex: Prisma / Postgres)
+const inventoryGateway = new DatabaseInventoryGateway(
+  // Busca em lote no banco (SELECT ... WHERE id IN (...))
+  async (productIds: string[]) => {
+    return await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, stock: true, reservedStock: true, allowBackorder: true },
+    });
+  },
+  // Reserva atômica opcional enquanto o pagamento é processado
+  async (reservationReq) => {
+    const token = await prisma.reservation.create({ data: reservationReq });
+    return { success: true, reservationToken: token.id };
+  }
+);
+
+// 2. Esteira com validação de estoque em lote e reserva temporária de 15 minutos
+const pipeline = OrderPipelineBuilder.create()
+  .addStep(
+    new StockValidationStep(inventoryGateway, {
+      reserveOnValidation: true,
+      reservationTtlMinutes: 15,
+      allowBackorders: false,
+    })
+  )
+  .build();
+```
+
+---
+
 ### Validação e Aplicação de Desconto por Item Antes do Pagamento
+
 
 A esteira suporta verificação de itens marcados com desconto (`hasDiscount: true`) com cálculo percentual (`%`) ou em valor fixo (`$`):
 
@@ -147,7 +191,87 @@ const pedidoFinal = await pipeline.process(pedido);
 // pedidoFinal.paymentStatus => "AUTHORIZED"
 ```
 
+### Estratégias Compostas (GoF Composite Pattern) & Desconto por Meio de Pagamento
+
+A biblioteca suporta o padrão **Composite (GoF)** para combinar múltiplas regras de precificação simultâneas (ex: desconto de produto + desconto por espécie + desconto de 5% no PIX) gerando um extrato detalhado (*breakdown*) dos descontos:
+
+```typescript
+import {
+  OrderPipelineBuilder,
+  StockValidationStep,
+  CompositePricingStrategy,
+  ItemDiscountPricingStrategy,
+  PaymentMethodDiscountStrategy,
+  PricingStep,
+  PaymentProcessingStep,
+  OrderContext,
+} from "@kitoca/order-engine";
+
+// 1. Combina a estratégia de produtos com a de desconto no PIX
+const compositePricing = new CompositePricingStrategy([
+  new ItemDiscountPricingStrategy(),
+  new PaymentMethodDiscountStrategy("PIX", 0.05), // 5% de desconto no PIX
+]);
+
+// 2. Monta a esteira utilizando o PricingStep
+const pipeline = OrderPipelineBuilder.create()
+  .addStep(new StockValidationStep(inventoryAdapter))
+  .addStep(new PricingStep(compositePricing, /* frete = */ 20.0))
+  .addStep(new PaymentSimulatorStep())
+  .build();
+
+const pedido: OrderContext = {
+  orderId: "PED-COMPOSITE-01",
+  customerId: "CLI-99",
+  items: [
+    { id: "1", name: "Ração Chinchila", targetSpecies: "Chinchila", unitPrice: 100, quantity: 2, hasDiscount: true, discount: { type: "PERCENTAGE", value: 10 } }
+  ],
+  metadata: { paymentMethod: "PIX" },
+};
+
+const processado = await pipeline.process(pedido);
+// processado.pricing.discountAmount => 29 (20 de desconto do item + 9 de desconto do PIX)
+// processado.metadata.pricingBreakdown => Lista detalhada de cada desconto concedido!
+```
+
 ---
+
+### Arquitetura de Pagamentos Desacoplada (DIP & Gateways Reutilizáveis)
+
+
+A biblioteca utiliza o Princípio da Inversão de Dependência (DIP) para pagamentos. Você pode usar o simulador integrado (com suporte a PIX, Cartão e Boleto) ou conectar qualquer gateway real (ex: Mercado Pago, Stripe, Pagar.me):
+
+```typescript
+import {
+  OrderPipelineBuilder,
+  PaymentProcessingStep,
+  PaymentGateway,
+  PaymentRequest,
+  PaymentResult,
+} from "@kitoca/order-engine";
+
+// 1. Criando um adaptador de pagamento real (ex: Mercado Pago ou Stripe)
+export class MercadoPagoGateway implements PaymentGateway {
+  public async processPayment(request: PaymentRequest): Promise<PaymentResult> {
+    // Chamada externa à API do provedor financeiro
+    return {
+      success: true,
+      status: "AUTHORIZED",
+      transactionId: `MP-${Date.now()}`,
+      authorizationCode: "AUTH-OK-987",
+      paidAt: new Date(),
+    };
+  }
+}
+
+// 2. Conectando o gateway na esteira de checkout
+const pipeline = OrderPipelineBuilder.create()
+  .addStep(new PaymentProcessingStep(new MercadoPagoGateway()))
+  .build();
+```
+
+---
+
 
 
 ## 5. Guia Passo-a-Passo de Extensão (Novos Plugins / Estratégias)

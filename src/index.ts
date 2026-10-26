@@ -6,5 +6,8 @@ export * from "./core/pipeline";
 export * from "./core/builder";
 export * from "./strategies/standard-pricing.strategy";
 export * from "./strategies/exotic-pet-discount.strategy";
+export * from "./strategies/item-discount.strategy";
 export * from "./steps/stock-validation.step";
 export * from "./steps/payment-simulator.step";
+export * from "./steps/apply-item-discount.step";
+

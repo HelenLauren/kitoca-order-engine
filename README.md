@@ -95,7 +95,60 @@ const pedido: OrderContext = {
 const pedidoProcessado = await pipeline.process(pedido);
 ```
 
+### Validação e Aplicação de Desconto por Item Antes do Pagamento
+
+A esteira suporta verificação de itens marcados com desconto (`hasDiscount: true`) com cálculo percentual (`%`) ou em valor fixo (`$`):
+
+```typescript
+import {
+  OrderPipelineBuilder,
+  StockValidationStep,
+  ApplyItemDiscountStep,
+  PaymentSimulatorStep,
+  OrderContext,
+} from "@kitoca/order-engine";
+
+const pipeline = OrderPipelineBuilder.create()
+  .addStep(new StockValidationStep(inventoryAdapter))
+  // 1. Valida e aplica descontos antes do pagamento
+  .addStep(new ApplyItemDiscountStep(/* freteBase = */ 15.0))
+  // 2. Gateway processa o valor com desconto já deduzido
+  .addStep(new PaymentSimulatorStep())
+  .build();
+
+const pedido: OrderContext = {
+  orderId: "PED-PROMO-2026",
+  customerId: "CLI-01",
+  items: [
+    {
+      id: "P1",
+      name: "Ração Premium Papagaio",
+      targetSpecies: "Papagaio",
+      unitPrice: 100,
+      quantity: 2,
+      hasDiscount: true,
+      discount: { type: "PERCENTAGE", value: 15 }, // 15% de desconto
+    },
+    {
+      id: "P2",
+      name: "Brinquedo Roedor",
+      targetSpecies: "Hamster",
+      unitPrice: 50,
+      quantity: 1,
+      hasDiscount: true,
+      discount: { type: "FIXED", value: 10 }, // R$ 10,00 de desconto
+    },
+  ],
+  metadata: {},
+};
+
+const pedidoFinal = await pipeline.process(pedido);
+// pedidoFinal.pricing.discountAmount => 40 (30 + 10)
+// pedidoFinal.paymentStatus => "AUTHORIZED"
+```
+
 ---
+
 
 ## 5. Guia Passo-a-Passo de Extensão (Novos Plugins / Estratégias)
 

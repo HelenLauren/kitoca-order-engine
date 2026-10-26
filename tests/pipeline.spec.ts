@@ -4,9 +4,12 @@ import {
   OrderItem,
   StandardPricingStrategy,
   ExoticPetBundleDiscountStrategy,
+  ItemDiscountPricingStrategy,
   StockValidationStep,
   PaymentSimulatorStep,
+  ApplyItemDiscountStep,
 } from "../src";
+
 
 describe("Kitoca Order Engine - Pipeline Tests", () => {
   const items: OrderItem[] = [
@@ -180,4 +183,174 @@ describe("Kitoca Order Engine - Pipeline Tests", () => {
       ).toThrow("[OrderPipelineBuilder] Passo inválido informado.");
     });
   });
+
+  describe("Product Discounts (% and $) - ItemDiscountPricingStrategy & ApplyItemDiscountStep", () => {
+    test("deve calcular descontos percentuais e em valor fixo por produto", () => {
+      const discountedItems: OrderItem[] = [
+        {
+          id: "P1",
+          name: "Ração Premium Papagaio",
+          targetSpecies: "Papagaio",
+          unitPrice: 100,
+          quantity: 2,
+          hasDiscount: true,
+          discount: { type: "PERCENTAGE", value: 15 }, // 15% de 100 = 15 x 2 = 30
+        },
+        {
+          id: "P2",
+          name: "Brinquedo Madeira Roedores",
+          targetSpecies: "Hamster",
+          unitPrice: 50,
+          quantity: 1,
+          hasDiscount: true,
+          discount: { type: "FIXED", value: 10 }, // R$ 10 de desconto x 1 = 10
+        },
+        {
+          id: "P3",
+          name: "Bebedouro Automático",
+          targetSpecies: "Aves",
+          unitPrice: 30,
+          quantity: 1,
+          hasDiscount: false, // Sem desconto
+        },
+      ];
+
+      const strategy = new ItemDiscountPricingStrategy();
+      const summary = strategy.calculate(discountedItems, 20);
+
+      // Subtotal: (100 * 2) + 50 + 30 = 280
+      // Descontos: 30 + 10 = 40
+      // Frete: 20
+      // Final: 280 - 40 + 20 = 260
+      expect(summary.subtotal).toBe(280);
+      expect(summary.discountAmount).toBe(40);
+      expect(summary.shippingCost).toBe(20);
+      expect(summary.finalAmount).toBe(260);
+    });
+
+    test("deve aplicar o desconto na pipeline antes da autorização do pagamento", async () => {
+      const inventoryMock = { getAvailableStock: async () => 50 };
+      const discountedItems: OrderItem[] = [
+        {
+          id: "P1",
+          name: "Ração Super Premium Furão",
+          targetSpecies: "Furão",
+          unitPrice: 80,
+          quantity: 2,
+          hasDiscount: true,
+          discount: { type: "PERCENTAGE", value: 20 }, // 20% de 80 = 16 x 2 = 32 de desconto
+        },
+      ];
+
+      let priceObservedAtPayment: number | undefined;
+
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new StockValidationStep(inventoryMock))
+        .addStep(new ApplyItemDiscountStep(15)) // Aplica o desconto antes do pagamento (frete base 15)
+        .addStep({
+          name: "InspectBeforePaymentStep",
+          execute: async (ctx, next) => {
+            priceObservedAtPayment = ctx.pricing?.finalAmount;
+            await next();
+          },
+        })
+        .addStep(new PaymentSimulatorStep(false))
+        .build();
+
+      const ctx: OrderContext = {
+        orderId: "PED-DISCOUNT-01",
+        customerId: "CUST-1",
+        items: discountedItems,
+        metadata: {},
+      };
+
+      await pipeline.process(ctx);
+
+      // Subtotal: 160, Desconto: 32, Frete: 15, Total: 160 - 32 + 15 = 143
+      expect(ctx.pricing?.subtotal).toBe(160);
+      expect(ctx.pricing?.discountAmount).toBe(32);
+      expect(ctx.pricing?.finalAmount).toBe(143);
+      expect(priceObservedAtPayment).toBe(143);
+      expect(ctx.paymentStatus).toBe("AUTHORIZED");
+      expect(ctx.metadata.discountAppliedBeforePayment).toBe(true);
+      expect(ctx.metadata.itemDiscountTotal).toBe(32);
+    });
+
+    test("deve lançar erro se produto marcado com desconto não tiver especificação de desconto", async () => {
+      const invalidItems: OrderItem[] = [
+        {
+          id: "P-INVALID",
+          name: "Item Inválido",
+          targetSpecies: "Reptil",
+          unitPrice: 100,
+          quantity: 1,
+          hasDiscount: true, // marcado como true mas sem discount
+        },
+      ];
+
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new ApplyItemDiscountStep())
+        .build();
+
+      const ctx: OrderContext = {
+        orderId: "PED-ERR",
+        customerId: "CUST-ERR",
+        items: invalidItems,
+        metadata: {},
+      };
+
+      await expect(pipeline.process(ctx)).rejects.toThrow(
+        /Item Inválido.*está marcado com desconto, mas não possui especificação de desconto/
+      );
+    });
+
+    test("deve validar se percentual de desconto ultrapassa 100% ou se valor é negativo", async () => {
+      const overDiscountItem: OrderItem[] = [
+        {
+          id: "P-OVER",
+          name: "Item Desconto Excessivo",
+          targetSpecies: "Aves",
+          unitPrice: 100,
+          quantity: 1,
+          hasDiscount: true,
+          discount: { type: "PERCENTAGE", value: 150 }, // > 100%
+        },
+      ];
+
+      const negativeDiscountItem: OrderItem[] = [
+        {
+          id: "P-NEG",
+          name: "Item Desconto Negativo",
+          targetSpecies: "Aves",
+          unitPrice: 100,
+          quantity: 1,
+          hasDiscount: true,
+          discount: { type: "FIXED", value: -10 }, // < 0
+        },
+      ];
+
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new ApplyItemDiscountStep())
+        .build();
+
+      await expect(
+        pipeline.process({
+          orderId: "ERR1",
+          customerId: "C1",
+          items: overDiscountItem,
+          metadata: {},
+        })
+      ).rejects.toThrow(/não pode ser superior a 100%/);
+
+      await expect(
+        pipeline.process({
+          orderId: "ERR2",
+          customerId: "C2",
+          items: negativeDiscountItem,
+          metadata: {},
+        })
+      ).rejects.toThrow(/não pode ser negativo/);
+    });
+  });
 });
+

@@ -7,8 +7,12 @@ import {
   ItemDiscountPricingStrategy,
   StockValidationStep,
   PaymentSimulatorStep,
+  PaymentProcessingStep,
+  PaymentGateway,
+  MockPaymentGateway,
   ApplyItemDiscountStep,
 } from "../src";
+
 
 
 describe("Kitoca Order Engine - Pipeline Tests", () => {
@@ -131,7 +135,68 @@ describe("Kitoca Order Engine - Pipeline Tests", () => {
       expect(ctx.paymentStatus).toBe("DECLINED");
       expect(failedNotified).toBe(true);
     });
+
+    test("deve processar pagamento via PIX gerando payload QR Code e auditoria", async () => {
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new PaymentSimulatorStep(false))
+        .build();
+
+      const ctx: OrderContext = {
+        orderId: "PED-PIX-01",
+        customerId: "TUTOR-PIX",
+        items,
+        metadata: {
+          paymentMethod: "PIX",
+        },
+      };
+
+      await pipeline.process(ctx);
+
+      expect(ctx.paymentStatus).toBe("AUTHORIZED");
+      const transaction = ctx.metadata.paymentTransaction as any;
+      expect(transaction).toBeDefined();
+      expect(transaction.success).toBe(true);
+      expect(transaction.transactionId).toMatch(/^TX-/);
+      expect(transaction.qrCodePix).toContain("br.gov.bcb.pix");
+    });
+
+    test("deve permitir injetar um PaymentGateway customizado (ex: Mercado Pago / Stripe) escalável", async () => {
+      // Simulação de gateway externo (ex: MercadoPago / Stripe Adapter)
+      let customGatewayCalled = false;
+      const customGateway: PaymentGateway = {
+        processPayment: async (req) => {
+          customGatewayCalled = true;
+          return {
+            success: true,
+            status: "AUTHORIZED",
+            transactionId: `MP-EXT-${req.orderId}`,
+            authorizationCode: "MP-AUTH-9999",
+            paidAt: new Date(),
+          };
+        },
+      };
+
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new PaymentProcessingStep(customGateway))
+        .build();
+
+      const ctx: OrderContext = {
+        orderId: "PED-EXT-01",
+        customerId: "CLI-EXTERNAL",
+        items,
+        metadata: {},
+      };
+
+      await pipeline.process(ctx);
+
+      expect(customGatewayCalled).toBe(true);
+      expect(ctx.paymentStatus).toBe("AUTHORIZED");
+      const tx = ctx.metadata.paymentTransaction as any;
+      expect(tx.transactionId).toBe("MP-EXT-PED-EXT-01");
+      expect(tx.authorizationCode).toBe("MP-AUTH-9999");
+    });
   });
+
 
   describe("OrderPipeline & Builder lifecycle", () => {
     test("deve disparar eventos pipeline:started e pipeline:completed no fluxo de sucesso", async () => {
@@ -353,4 +418,3 @@ describe("Kitoca Order Engine - Pipeline Tests", () => {
     });
   });
 });
-

@@ -2,12 +2,14 @@ import {
   OrderCalculationSummary,
   OrderItem,
   PricingStrategy,
+  PricingStrategyContext,
 } from "../contracts/strategy.contract";
 
 export class StandardPricingStrategy implements PricingStrategy {
   public calculate(
     items: readonly OrderItem[],
-    baseShipping: number
+    baseShipping: number,
+    _context?: PricingStrategyContext
   ): OrderCalculationSummary {
     const subtotal = items.reduce(
       (acc, it) => acc + it.unitPrice * it.quantity,
@@ -19,6 +21,7 @@ export class StandardPricingStrategy implements PricingStrategy {
       discountAmount,
       shippingCost: baseShipping,
       finalAmount: Math.max(0, subtotal - discountAmount + baseShipping),
+      discounts: [],
     };
   }
 }

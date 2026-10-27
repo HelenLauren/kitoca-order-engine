@@ -12,3 +12,5 @@ export * from "./strategies/item-discount.strategy";
 export * from "./steps/stock-validation.step";
 export * from "./steps/payment-simulator.step";
 export * from "./steps/apply-item-discount.step";
+export * from "./strategies/composite-pricing.strategy";
+export * from "./strategies/payment-method-discount.strategy";

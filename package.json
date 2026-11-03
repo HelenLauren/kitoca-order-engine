@@ -1,12 +1,14 @@
 {
   "name": "@kitoca/order-engine",
   "version": "1.0.0",
-  "description": "Pipeline transacional extensível Kitoca",
+  "description": "Pipeline transacional - Order Engine",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "jest",
+    "test:coverage": "jest --coverage",
+    "demo": "tsc && node dist/demo.js",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {

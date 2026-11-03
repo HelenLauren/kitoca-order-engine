@@ -9,7 +9,7 @@
 
 - **Projeto:** Kitoca - Plataforma Integrada de E-commerce & Conteúdo de Pets Exóticos
 - **Componente:** `@kitoca/order-engine` (Biblioteca de Checkout e Esteira de Pedidos)
-- **Integrantes do Grupo:** Bruno Viccenzo Mazetto, Helen Lauren Bonato, Letícia Bastías Fabri
+- **Integrantes do Grupo:** Bruno Viccenzo Mazetto, Helen Lauren Bonato, Letícia Bastías Fabri, Rafael Sene
 - **Link da Apresentação em Vídeo (YouTube):** Em andamento...
 
 ---
@@ -56,6 +56,12 @@ npm run build
 
 # Execução da suíte de testes com Jest
 npm test
+
+# Execução dos testes com relatório de cobertura (Code Coverage)
+npm run test:coverage
+
+# Execução da demonstração prática interativa (Terminal)
+npm run demo
 ```
 
 ---

@@ -278,6 +278,33 @@ const pipeline = OrderPipelineBuilder.create()
 
 ---
 
+### Validação de Cupons Desacoplada (`CouponValidationStep`)
+
+Você também pode validar cupons promocionais (`PERCENTAGE`, `FIXED` ou `FREE_SHIPPING`) injetando qualquer fonte de dados via `CouponLookupService`:
+
+```typescript
+import {
+  OrderPipelineBuilder,
+  CouponValidationStep,
+  CouponLookupService,
+} from "@kitoca/order-engine";
+
+const couponService: CouponLookupService = {
+  findCoupon: async (code) => {
+    if (code === "KITOCA10") {
+      return { code: "KITOCA10", type: "PERCENTAGE", value: 10, minOrderValue: 100 };
+    }
+    return null;
+  },
+};
+
+const pipeline = OrderPipelineBuilder.create()
+  .addStep(new CouponValidationStep(couponService))
+  .build();
+```
+
+---
+
 
 
 ## 5. Guia Passo-a-Passo de Extensão (Novos Plugins / Estratégias)

@@ -15,6 +15,8 @@ import {
   CompositePricingStrategy,
   PaymentMethodDiscountStrategy,
   PricingStep,
+  CouponValidationStep,
+  CouponLookupService,
 } from "../src";
 
 
@@ -579,6 +581,104 @@ describe("Kitoca Order Engine - Pipeline Tests", () => {
       expect(ctx.pricing?.finalAmount).toBe(105);
       expect(ctx.paymentStatus).toBe("AUTHORIZED");
       expect(ctx.metadata.pricingBreakdown).toHaveLength(2);
+    });
+  });
+
+  describe("CouponValidationStep", () => {
+    const mockCouponService: CouponLookupService = {
+      findCoupon: async (code: string) => {
+        const coupons: Record<string, any> = {
+          KITOCA10: { code: "KITOCA10", type: "PERCENTAGE", value: 10, minOrderValue: 50 },
+          DESC25: { code: "DESC25", type: "FIXED", value: 25 },
+          FRETEGRATIS: { code: "FRETEGRATIS", type: "FREE_SHIPPING", value: 0 },
+        };
+        return coupons[code] || null;
+      },
+    };
+
+    test("deve avançar normalmente quando nenhum cupom for informado", async () => {
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new CouponValidationStep(mockCouponService))
+        .build();
+
+      const ctx: OrderContext = {
+        orderId: "PED-NO-COUPON",
+        customerId: "C1",
+        items,
+        metadata: {},
+      };
+
+      await pipeline.process(ctx);
+      expect(ctx.metadata.appliedCoupon).toBeUndefined();
+    });
+
+    test("deve aplicar cupom percentual, fixo e de frete grátis corretamente", async () => {
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new CouponValidationStep(mockCouponService))
+        .build();
+
+      // 1. Cupom percentual (10% de 120 = 12)
+      const ctxPct: OrderContext = {
+        orderId: "PED-CP-1",
+        customerId: "C1",
+        items, // subtotal 120
+        metadata: { couponCode: " kitoca10 ", shippingCost: 20 },
+      };
+      await pipeline.process(ctxPct);
+      expect(ctxPct.pricing?.discountAmount).toBe(12);
+      expect(ctxPct.pricing?.finalAmount).toBe(128); // 120 - 12 + 20
+      expect(ctxPct.metadata.appliedCoupon).toEqual({
+        code: "KITOCA10",
+        type: "PERCENTAGE",
+        discountGiven: 12,
+      });
+
+      // 2. Cupom fixo (R$ 25 de desconto)
+      const ctxFixed: OrderContext = {
+        orderId: "PED-CP-2",
+        customerId: "C1",
+        items, // subtotal 120
+        metadata: { couponCode: "DESC25", shippingCost: 15 },
+      };
+      await pipeline.process(ctxFixed);
+      expect(ctxFixed.pricing?.discountAmount).toBe(25);
+      expect(ctxFixed.pricing?.finalAmount).toBe(110); // 120 - 25 + 15
+
+      // 3. Cupom de frete grátis
+      const ctxFreeShip: OrderContext = {
+        orderId: "PED-CP-3",
+        customerId: "C1",
+        items, // subtotal 120
+        metadata: { couponCode: "FRETEGRATIS", shippingCost: 30 },
+      };
+      await pipeline.process(ctxFreeShip);
+      expect(ctxFreeShip.pricing?.shippingCost).toBe(0);
+      expect(ctxFreeShip.pricing?.finalAmount).toBe(120);
+      expect(ctxFreeShip.metadata.freeShippingApplied).toBe(true);
+    });
+
+    test("deve rejeitar cupom inexistente ou abaixo do valor mínimo do pedido", async () => {
+      const pipeline = OrderPipelineBuilder.create()
+        .addStep(new CouponValidationStep(mockCouponService))
+        .build();
+
+      await expect(
+        pipeline.process({
+          orderId: "PED-CP-INVALID",
+          customerId: "C1",
+          items,
+          metadata: { couponCode: "NAOEXISTE" },
+        })
+      ).rejects.toThrow(/não existe ou expirou/);
+
+      await expect(
+        pipeline.process({
+          orderId: "PED-CP-MIN",
+          customerId: "C1",
+          items: [{ id: "1", name: "Petisco", targetSpecies: "Hamster", unitPrice: 20, quantity: 1 }],
+          metadata: { couponCode: "KITOCA10" }, // exige minOrderValue: 50
+        })
+      ).rejects.toThrow(/exige valor mínimo de R\$ 50\.00/);
     });
   });
 });

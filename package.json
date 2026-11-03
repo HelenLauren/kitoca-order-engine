@@ -1,9 +1,20 @@
 {
   "name": "@kitoca/order-engine",
   "version": "1.0.0",
-  "description": "Pipeline transacional - Order Engine",
+  "description": "TypeScript library for building processing and checkout pipelines for unconventional pets, featuring stock validation, species-based discounts, and post-sale events, with no dependencies on APIs or HTTP",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "checkout",
+    "order-pipeline",
+    "e-commerce",
+    "design-patterns",
+    "exotic-pets",
+    "typescript"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "jest",

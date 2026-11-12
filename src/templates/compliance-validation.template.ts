@@ -80,3 +80,80 @@ export abstract class AbstractComplianceValidationTemplate implements OrderStep 
     ];
   }
 }
+
+/**
+ * Validação de licença ambiental (IBAMA) para espécies silvestres/exóticas controladas.
+ */
+export class IbamaSpeciesComplianceStep extends AbstractComplianceValidationTemplate {
+  public readonly name = "IbamaSpeciesComplianceStep";
+
+  constructor(
+    private readonly controlledSpecies: readonly string[] = [
+      "Iguana",
+      "Jiboia",
+      "Papagaio",
+      "Jabuti",
+    ]
+  ) {
+    super();
+  }
+
+  protected override shouldValidate(context: OrderContext): boolean {
+    const controlledSet = new Set(
+      this.controlledSpecies.map((s) => s.toLowerCase())
+    );
+    return context.items.some((item) =>
+      controlledSet.has(item.targetSpecies.toLowerCase())
+    );
+  }
+
+  protected collectViolations(context: OrderContext): string[] {
+    const violations: string[] = [];
+    const license = context.metadata.ibamaLicense;
+
+    if (typeof license !== "string" || license.trim().length < 5) {
+      violations.push(
+        "Número de registro/licença IBAMA ausente ou inválido para compra de insumos de espécies controladas."
+      );
+    }
+
+    return violations;
+  }
+}
+
+/**
+ * Validação de transporte climatizado para cargas perecíveis/biológicas de répteis e anfíbios.
+ */
+export class ThermalLogisticsComplianceStep extends AbstractComplianceValidationTemplate {
+  public readonly name = "ThermalLogisticsComplianceStep";
+
+  constructor(private readonly maxSupportedItemsPerBox: number = 10) {
+    super();
+  }
+
+  protected override shouldValidate(context: OrderContext): boolean {
+    return Boolean(context.metadata.requiresThermalTransport);
+  }
+
+  protected collectViolations(context: OrderContext): string[] {
+    const violations: string[] = [];
+    const totalQuantity = context.items.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    );
+
+    if (totalQuantity > this.maxSupportedItemsPerBox) {
+      violations.push(
+        `Quantidade de itens (${totalQuantity}) excede o limite térmico por embalagem (${this.maxSupportedItemsPerBox}).`
+      );
+    }
+
+    if (!context.metadata.thermalContainerConfirmed) {
+      violations.push(
+        "Confirmação de embalagem térmica (isopor/gel pack) não informada no pedido."
+      );
+    }
+
+    return violations;
+  }
+}

@@ -15,3 +15,7 @@ export * from "./steps/payment-simulator.step";
 export * from "./steps/apply-item-discount.step";
 export * from "./steps/coupon-validation.step";
 export * from "./steps/pricing-step";
+export * from "./decorators/step.decorator";
+export * from "./factories/pricing-strategy.factory";
+export * from "./states/order-lifecycle.state";
+export * from "./templates/compliance-validation.template";

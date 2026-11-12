@@ -36,12 +36,21 @@
 [PricingStrategy (Strategy Pattern)] <--- injetado no cálculo do contexto
 ```
 
-### Padrões de Projeto Clássicos (GoF) Aplicados
+### Padrões de Projeto Clássicos (GoF) Aplicados (8+ Padrões para Defesa Arquitetural)
 
-1. **Chain of Responsibility:** Encadeia verificações de catálogo, validação de estoque e gateway de pagamento via `next()`, permitindo interromper ou injetar passos externamente.
-2. **Strategy:** Isola algoritmos de precificação e descontos por espécie em contratos (`PricingStrategy`), permitindo alternância dinâmica em tempo de execução.
-3. **Builder:** `OrderPipelineBuilder` provê interface fluente para compor passos e observadores, garantindo integridade antes de congelar a esteira.
-4. **Observer:** `OrderEventBus` e `OrderObserver` notificam disparos de início, conclusão e falha de pedidos para auditoria e telemetria sem acoplamento.
+A biblioteca implementa **9 padrões GoF** divididos entre **Criacionais**, **Estruturais** e **Comportamentais** (garantindo ao menos 2 padrões exclusivos por integrante do grupo):
+
+| # | Padrão GoF | Categoria | Arquivos na Biblioteca | Responsabilidade Arquitetural |
+| :- | :--- | :--- | :--- | :--- |
+| **1** | **Chain of Responsibility** | Comportamental | `src/core/pipeline.ts`, `src/contracts/pipeline.contract.ts` | Encadeia passos de validação de estoque, precificação, cupom e pagamento via `next()`, permitindo interromper ou injetar etapas sem acoplamento. |
+| **2** | **Builder** | Criacional | `src/core/builder.ts` | `OrderPipelineBuilder` provê interface fluente (`.addStep()`, `.on()`, `.build()`) para montar e validar a esteira antes da execução. |
+| **3** | **Strategy** | Comportamental | `src/strategies/*.strategy.ts`, `src/contracts/strategy.contract.ts` | Isola algoritmos de cálculo de preços e descontos por espécie exótica, por item ou meio de pagamento (`PricingStrategy`), permitindo troca dinâmica em runtime. |
+| **4** | **Observer** | Comportamental | `src/core/event-bus.ts`, `src/contracts/observer.contract.ts` | `OrderEventBus` e `OrderObserver` notificam eventos de pós-venda (`pipeline:started`, `pipeline:completed`, `pipeline:failed`) de forma desacoplada. |
+| **5** | **Composite** | Estrutural | `src/strategies/composite-pricing.strategy.ts` | `CompositePricingStrategy` compõe múltiplas `PricingStrategy` em árvore/lista única, somando descontos com teto de subtotal e gerando *breakdown* detalhado. |
+| **6** | **Decorator** | Estrutural | `src/decorators/step.decorator.ts` | `OrderStepDecorator` (`TelemetryStepDecorator` e `RetryStepDecorator`) adiciona medição de latência e retentativas automáticas a qualquer `OrderStep` sem modificar sua classe. |
+| **7** | **Factory Method** | Criacional | `src/factories/pricing-strategy.factory.ts` | `PricingStrategyCreator` e `PricingStrategyFactory` encapsulam a criação de estratégias simples ou compostas a partir de perfis de checkout (`STANDARD`, `EXOTIC_BUNDLE`, `PROMOTIONAL_COMBO`). |
+| **8** | **State** | Comportamental | `src/states/order-lifecycle.state.ts` | `StatefulOrder` e classes `OrderLifecycleState` (`CREATED`, `STOCK_CONFIRMED`, `PAID`, `SHIPPED`, `CANCELLED`) governam transições válidas do pedido sem `if/else` espalhados. |
+| **9** | **Template Method** | Comportamental | `src/templates/compliance-validation.template.ts` | `AbstractComplianceValidationTemplate` define o esqueleto invariante de auditoria regulatória de pets exóticos, delegando regras específicas às subclasses (`IbamaSpeciesComplianceStep`, `ThermalLogisticsComplianceStep`). |
 
 ---
 

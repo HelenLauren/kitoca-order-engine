@@ -10,7 +10,7 @@
 - **Projeto:** Kitoca - Plataforma Integrada de E-commerce & Conteúdo de Pets Exóticos
 - **Componente:** `@kitoca/order-engine` (Biblioteca de Checkout e Esteira de Pedidos)
 - **Integrantes do Grupo:** Bruno Viccenzo Mazetto, Helen Lauren Bonato, Letícia Bastías Fabri, Rafael Sene
-- **Link da Apresentação em Vídeo (YouTube):** Em andamento...
+- **Link da Apresentação em Vídeo (YouTube):** https://www.youtube.com/watch?v=jgnRrpccQ5s
 
 ---
 
